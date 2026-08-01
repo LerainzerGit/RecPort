@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RecPort Real Build</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #f1f1f1; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .container { text-align: left; max-width: 760px; padding: 24px; width: 100%; }
+    a { color: #5fb3ff; }
+    .notice { margin-top: 16px; padding: 16px; border: 1px solid #333; background: #161616; border-radius: 12px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    button, .button-link { background: #5fb3ff; color: #07111d; border: none; padding: 10px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
+    #vrStatus { margin-top: 10px; color: #dceeff; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    code { background: #1d1d1d; padding: 2px 6px; border-radius: 6px; }
+    #status { margin-top: 12px; color: #a8d9ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RecPort Real RR Build</h1>
+    <p>This page is now wired to the local Rec Room build directory and the backend service.</p>
+    <div class="notice">
+      <h3>Build status</h3>
+      <div id="status">Checking build availability…</div>
+      <div class="actions">
+        <a class="button-link" id="openBuildLink" href="./">Back to browser client</a>
+        <button id="launchBtn" disabled>Launch build</button>
+        <button id="vrBtn">Enter VR</button>
+      </div>
+      <p id="launchResult"></p>
+      <p id="vrStatus">VR mode is available on supported browsers and devices.</p>
+      <p><small>Launch requires a Windows runtime or Wine on the host. This GitHub Pages deployment is static only; the actual build launch is available from the local backend server.</small></p>
+    </div>
+    <p><a href="./">Back to browser client</a></p>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status')
+    const openBuildLink = document.getElementById('openBuildLink')
+    const launchBtn = document.getElementById('launchBtn')
+    const launchResult = document.getElementById('launchResult')
+    const vrBtn = document.getElementById('vrBtn')
+    const vrStatus = document.getElementById('vrStatus')
+
+    async function loadBuildInfo() {
+      try {
+        const response = await fetch('./api/build-info')
+        const data = await response.json()
+        if (data.buildExists) {
+          statusEl.innerHTML = `Build detected at <code>${data.buildRoot}</code><br/>Backend: <code>${data.backendWs}</code>`
+          launchBtn.disabled = false
+        } else {
+          statusEl.textContent = 'No downloaded build was found. Set RECROOM_BUILD_DIR to an existing build directory.'
+          launchBtn.disabled = true
+        }
+      } catch (error) {
+        statusEl.textContent = 'This GitHub Pages deployment is the static front-end only. Run the local backend server to enable build launch and websocket features.'
+        launchBtn.disabled = true
+      }
+    }
+
+    launchBtn.addEventListener('click', async () => {
+      launchBtn.disabled = true
+      launchResult.textContent = 'Requesting launch…'
+      try {
+        const response = await fetch('./api/build/launch', { method: 'POST' })
+        const data = await response.json()
+        if (data.success) {
+          launchResult.textContent = `Launch requested: ${data.command}`
+        } else {
+          launchResult.textContent = data.error || 'Launch failed.'
+        }
+      } catch (error) {
+        launchResult.textContent = `Launch request failed: ${error.message}`
+      } finally {
+        launchBtn.disabled = false
+      }
+    })
+
+    vrBtn.addEventListener('click', async () => {
+      if (!navigator.xr) {
+        vrStatus.textContent = 'WebXR is not available in this browser. Try a Meta Quest browser or Chromium with WebXR enabled.'
+        return
+      }
+
+      try {
+        const session = await navigator.xr.requestSession('immersive-vr')
+        vrStatus.textContent = 'VR session started. The browser is now in immersive mode.'
+        await session.end()
+      } catch (error) {
+        vrStatus.textContent = `VR session could not start: ${error.message}`
+      }
+    })
+
+    loadBuildInfo()
+  </script>
+</body>
+</html>
